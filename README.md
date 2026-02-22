@@ -1,10 +1,6 @@
 # Team 3020 Robot Code
 
-Hey! This is the code for Team 3020's 2026 season robot. We're a sister team of Team 5805 (Alphabot) and they helped us get started with this code.
-
-## What's This Robot Do?
-
-Our robot picks up game pieces from the floor and shoots them at targets. Pretty standard FRC stuff!
+Hello Team 3020 this is the scafolding code for the basic subsystems implemented with out the **SWERVE** subsystem for this robot 
 
 ### The Mechanisms
 
@@ -105,8 +101,8 @@ Want a different button layout? Edit `RobotContainer.java` in the `configureBind
 
 ## Credits
 
-- **Team 3020** - That's us!
-- **Team 5805 (Alphabot)** - Our sister team who shared their code
+- **Team 3020** - That's you guys!
+- **Team 5805 (Alphabot)** - the sister team who shared their code
 - **Author**: Baichen Yu
 
 Good luck at competition!
