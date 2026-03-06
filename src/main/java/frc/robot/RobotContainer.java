@@ -11,7 +11,13 @@ import static edu.wpi.first.units.Units.RotationsPerSecond;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 
+import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.auto.NamedCommands;
+
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.ConditionalCommand;
 import edu.wpi.first.wpilibj2.command.button.CommandPS5Controller;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
@@ -137,12 +143,41 @@ public class RobotContainer {
   private final CommandPS5Controller m_controller =
       new CommandPS5Controller(OperatorConstants.kDriverControllerPort);
 
+  // ===== AUTO CHOOSER =====
+  private final SendableChooser<Command> m_autoChooser;
+
   public RobotContainer() {
     System.out.println("============================================");
     System.out.println("        TEAM 3020 ROBOT STARTING UP");
     System.out.println("============================================");
 
     m_intake.setPowerManagement(m_power);
+
+    // Register PathPlanner named commands BEFORE building autos.
+    // "shoot" replicates the L1 shoot sequence for auto:
+    //   1) Shooter spins up + auto-feed when on target (same as L1)
+    //   2) Arm: home if needed → deploy DOWN fast → slow stow back UP (pushes balls into shooter)
+    // No timeout here — the auto's 7s deadline group controls when everything stops.
+    NamedCommands.registerCommand("shoot",
+        Commands.parallel(
+            new ShootV1Command(m_shooter),
+            new ShootAutoFeedCommand(m_shooter, m_feeder),
+            Commands.sequence(
+                // Arm starts stowed at match start — deploy down first to reach the balls
+                new ConditionalCommand(
+                    new DeployDownCommand(m_intakeArm),
+                    new HomeArmCommand(m_intakeArm).andThen(new DeployDownCommand(m_intakeArm)),
+                    m_intakeArm::hasHomed),
+                // Then slow-stow back up, pushing balls toward the shooter/indexer
+                new ShootStowArmCommand(m_intakeArm, m_shooter)
+            )
+        )
+    );
+
+    // Build auto chooser from all PathPlanner .auto files.
+    // Drivers select Red or Blue on Shuffleboard before match.
+    m_autoChooser = AutoBuilder.buildAutoChooser();
+    SmartDashboard.putData("Auto Chooser", m_autoChooser);
 
     configureBindings();
 
@@ -274,6 +309,6 @@ public class RobotContainer {
   }
 
   public Command getAutonomousCommand() {
-    return null;
+    return m_autoChooser.getSelected();
   }
 }
