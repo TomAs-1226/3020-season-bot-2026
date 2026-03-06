@@ -84,6 +84,13 @@ public class AutoDeployIntakeCommand extends Command {
 
   @Override
   public void execute() {
+    // Keep gravity feedforward accurate while the arm is moving —
+    // without this, the gravity FF is stale from the initial deployDown() call
+    // and the arm may not reach the deploy position or overshoot.
+    if (m_deployStarted) {
+      m_deploy.refreshFeedForward();
+    }
+
     // Wait for deploy to finish, then start intake rollers
     if (m_deployStarted && m_deploy.isDown()) {
       m_intake.runIntake();

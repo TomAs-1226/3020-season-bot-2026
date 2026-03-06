@@ -11,6 +11,7 @@ import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
+import edu.wpi.first.wpilibj.Preferences;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -42,9 +43,9 @@ import frc.robot.Constants.MotorConstants;
  */
 public class IntakeSubsystem extends SubsystemBase {
 
-  // The intake motor
+  // The intake motor (Falcon 500, CAN 45 - Falcon does NOT support FOC)
   private final TalonFX m_motor;
-  private final DutyCycleOut m_dutyCycle = new DutyCycleOut(0).withEnableFOC(true);
+  private final DutyCycleOut m_dutyCycle = new DutyCycleOut(0).withEnableFOC(false);
 
   // State tracking
   private boolean m_isRunning = false;
@@ -69,6 +70,10 @@ public class IntakeSubsystem extends SubsystemBase {
     configureMotor();
 
     m_sessionStartTime = Timer.getFPGATimestamp();
+
+    // Load saved values from Preferences and show in Shuffleboard for live adjustment
+    SmartDashboard.putNumber("Intake Power %",         Preferences.getDouble("Intake Power %",         MotorConstants.kIntakePowerPercent));
+    SmartDashboard.putNumber("Intake Reverse Power %", Preferences.getDouble("Intake Reverse Power %", MotorConstants.kIntakeReversePowerPercent));
 
     System.out.println("[INTAKE] Roller ready - CAN ID " + MotorConstants.kMotorGroup3MotorID);
     System.out.println("[INTAKE] Intake power: " + MotorConstants.kIntakePowerPercent + "%");
@@ -116,7 +121,9 @@ public class IntakeSubsystem extends SubsystemBase {
    * Spins the roller to suck in.
    */
   public void runIntake() {
-    double power = MotorConstants.kIntakePowerPercent / 100.0;
+    // Read from SmartDashboard — user edits in Shuffleboard; auto-saved to Preferences in periodic
+    double power = SmartDashboard.getNumber("Intake Power %", MotorConstants.kIntakePowerPercent) / 100.0;
+    power = Math.max(0.0, Math.min(1.0, power));
 
     // Reduce power if battery is low
     if (m_powerManagement != null) {
@@ -134,7 +141,9 @@ public class IntakeSubsystem extends SubsystemBase {
    * Use this if you grabbed the wrong one!
    */
   public void runReverse() {
-    double power = -MotorConstants.kIntakeReversePowerPercent / 100.0;
+    // Read from SmartDashboard — user edits in Shuffleboard; auto-saved to Preferences in periodic
+    double power = -SmartDashboard.getNumber("Intake Reverse Power %", MotorConstants.kIntakeReversePowerPercent) / 100.0;
+    power = Math.max(-1.0, Math.min(0.0, power));
 
     // Reduce power if battery is low
     if (m_powerManagement != null) {
@@ -214,8 +223,12 @@ public class IntakeSubsystem extends SubsystemBase {
     SmartDashboard.putNumber("Intake RPM", rpm);
     SmartDashboard.putNumber("Intake Amps", amps);
     SmartDashboard.putNumber("Intake Temp C", getMotorTemp());
-    SmartDashboard.putNumber("Intake Power %", m_currentPower * 100);
+    SmartDashboard.putNumber("Intake Applied %", m_currentPower * 100); // actual applied (read-only)
     SmartDashboard.putBoolean("Intake Running", m_isRunning);
     SmartDashboard.putBoolean("Intake Alive", m_motor.isAlive());
+
+    // Auto-save tuning inputs to Preferences so they persist across code deploys
+    Preferences.setDouble("Intake Power %",         SmartDashboard.getNumber("Intake Power %",         MotorConstants.kIntakePowerPercent));
+    Preferences.setDouble("Intake Reverse Power %", SmartDashboard.getNumber("Intake Reverse Power %", MotorConstants.kIntakeReversePowerPercent));
   }
 }

@@ -4,6 +4,8 @@
 
 package frc.robot;
 
+import java.io.File;
+
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
@@ -41,6 +43,8 @@ public class Robot extends TimedRobot {
     System.out.println("        TEAM 3020 CODE STARTING");
     System.out.println("============================================");
 
+    clearOldLogs();
+
     m_robotContainer = new RobotContainer();
 
     System.out.println("[TEAM 3020] Robot ready!");
@@ -53,6 +57,25 @@ public class Robot extends TimedRobot {
   @Override
   public void robotPeriodic() {
     CommandScheduler.getInstance().run();
+  }
+
+  /** Deletes all .wpilog files from the roboRIO log directory on startup to free storage. */
+  private static void clearOldLogs() {
+    try {
+      File logDir = new File("/home/lvuser/logs");
+      if (logDir.exists() && logDir.isDirectory()) {
+        File[] files = logDir.listFiles();
+        if (files != null) {
+          int deleted = 0;
+          for (File f : files) {
+            if (f.getName().endsWith(".wpilog") && f.delete()) deleted++;
+          }
+          System.out.println("[ROBOT] Cleared " + deleted + " old log file(s)");
+        }
+      }
+    } catch (Exception e) {
+      System.out.println("[ROBOT] Could not clear logs: " + e.getMessage());
+    }
   }
 
   // ===== DISABLED =====

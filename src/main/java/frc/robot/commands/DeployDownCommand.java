@@ -59,6 +59,13 @@ public class DeployDownCommand extends Command {
   }
 
   @Override
+  public void execute() {
+    // Re-apply position setpoint every cycle so kG*cos(theta) gravity FF stays accurate
+    // as the arm sweeps toward horizontal. Does NOT reset stall detection timing.
+    m_deploy.refreshFeedForward();
+  }
+
+  @Override
   public void end(boolean interrupted) {
     // If interrupted while still moving, stop the motor
     if (interrupted && m_deploy.isMoving()) {
@@ -68,7 +75,9 @@ public class DeployDownCommand extends Command {
 
   @Override
   public boolean isFinished() {
-    // Command ends when arm reaches the DOWN position (stall detected at floor)
-    return m_deploy.isDown();
+    // isAtTarget() = encoder within tolerance of the target rotations (normal arrival)
+    // isDown()     = state explicitly set to DOWN (covers stall-at-bumper arrival where
+    //                encoder may never reach the tuned target)
+    return m_deploy.isAtTarget() || m_deploy.isDown();
   }
 }

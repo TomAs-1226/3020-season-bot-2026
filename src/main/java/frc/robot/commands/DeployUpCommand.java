@@ -56,6 +56,13 @@ public class DeployUpCommand extends Command {
   }
 
   @Override
+  public void execute() {
+    // Re-apply position setpoint every cycle so kG*cos(theta) gravity FF stays accurate
+    // as the arm fights gravity through its arc. Does NOT reset stall detection timing.
+    m_deploy.refreshFeedForward();
+  }
+
+  @Override
   public void end(boolean interrupted) {
     // If interrupted while still moving, stop the motor
     if (interrupted && m_deploy.isMoving()) {
@@ -65,7 +72,9 @@ public class DeployUpCommand extends Command {
 
   @Override
   public boolean isFinished() {
-    // Command ends when arm reaches the UP position (stall detected at top)
-    return m_deploy.isUp();
+    // isAtTarget() = encoder within tolerance (normal arrival at stow position)
+    // isUp()       = state set to UP (covers stall-at-top-stop where encoder may
+    //                sit slightly outside tolerance due to physical hard stop)
+    return m_deploy.isAtTarget() || m_deploy.isUp();
   }
 }

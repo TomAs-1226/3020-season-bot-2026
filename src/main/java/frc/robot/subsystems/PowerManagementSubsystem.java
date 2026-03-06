@@ -46,7 +46,7 @@ public class PowerManagementSubsystem extends SubsystemBase {
     CRITICAL,   // 10.5-11.0V - battery is getting low
     EMERGENCY   // <10.5V - danger zone!
   }
-
+  // this system is in heavy beta currently, un expected behavior may occur
   // Current state
   private PowerState m_currentState = PowerState.NOMINAL;
   private PowerState m_previousState = PowerState.NOMINAL;
@@ -69,6 +69,19 @@ public class PowerManagementSubsystem extends SubsystemBase {
   private int m_warningCount = 0;
   private int m_criticalCount = 0;
   private int m_emergencyCount = 0;
+
+  // ── DEFENSE MODE ───────────────────────────────────────────────────────────
+  // Triggered when voltage stays below kEmergencyVoltage for DEFENSE_TRIGGER_S.
+  // Momentary spikes (e.g. drivetrain acceleration) are ignored.
+  // Once latched, defense mode stays active until the robot is re-powered —
+  // re-enabling the shooter mid-match would just cause another brownout.
+  private static final double DEFENSE_TRIGGER_S = 1.5; // seconds below emergency before we act
+  private double  m_emergencyStartTime = -1.0; // -1 = not currently below emergency
+  private boolean m_defenseModeActive  = false; // latched — stays true once set
+
+  // Print throttle — state change prints at most once per 2 s to prevent loop overruns
+  private static final double PRINT_INTERVAL_S = 2.0;
+  private double m_lastPrintTime = -PRINT_INTERVAL_S; // allow first print immediately
 
   /**
    * Creates the power management subsystem.
@@ -113,16 +126,38 @@ public class PowerManagementSubsystem extends SubsystemBase {
     // Update power state
     updatePowerState();
 
-    // Log state changes
+    // Log state changes — throttled to once per PRINT_INTERVAL_S to prevent loop overruns
     if (m_currentState != m_previousState) {
-      System.out.println("[POWER] " + m_previousState + " -> " + m_currentState +
-          " @ " + String.format("%.2f", m_currentVoltage) + "V");
-
       if (m_currentState == PowerState.WARNING) m_warningCount++;
       else if (m_currentState == PowerState.CRITICAL) m_criticalCount++;
       else if (m_currentState == PowerState.EMERGENCY) m_emergencyCount++;
 
+      if (now - m_lastPrintTime >= PRINT_INTERVAL_S) {
+        System.out.println("[POWER] " + m_previousState + " -> " + m_currentState +
+            " @ " + String.format("%.2f", m_currentVoltage) + "V");
+        m_lastPrintTime = now;
+      }
+
       m_previousState = m_currentState;
+    }
+
+    // ── Defense mode: kill shooter when voltage is sustained below emergency level ──
+    if (!m_defenseModeActive) {
+      if (m_currentVoltage < PowerConstants.kEmergencyVoltage) {
+        if (m_emergencyStartTime < 0) {
+          m_emergencyStartTime = now; // start the clock
+        } else if (now - m_emergencyStartTime >= DEFENSE_TRIGGER_S) {
+          // Voltage has been below emergency for long enough — latch defense mode
+          m_defenseModeActive = true;
+          // Defense mode fires exactly once — no throttle needed, but update lastPrintTime anyway
+          System.out.println("[POWER] *** DEFENSE MODE ACTIVATED — sustained brownout voltage! ***");
+          System.out.println("[POWER] Voltage: " + String.format("%.2f", m_currentVoltage) + "V for " +
+              String.format("%.1f", now - m_emergencyStartTime) + "s");
+          m_lastPrintTime = now;
+        }
+      } else {
+        m_emergencyStartTime = -1.0; // voltage recovered — reset timer, don't latch
+      }
     }
 
     // Update SmartDashboard
@@ -130,6 +165,7 @@ public class PowerManagementSubsystem extends SubsystemBase {
     SmartDashboard.putNumber("Battery Min V", m_minVoltageSession);
     SmartDashboard.putString("Power State", m_currentState.toString());
     SmartDashboard.putBoolean("Brownout Risk", m_brownoutImminent);
+    SmartDashboard.putBoolean("Defense Mode", m_defenseModeActive);
     SmartDashboard.putNumber("Battery %", getBatteryHealthPercent());
     SmartDashboard.putBoolean("Safe to Shoot", isSafeToShoot());
     SmartDashboard.putNumber("Discharge V/s", m_voltageSlope);
@@ -193,6 +229,15 @@ public class PowerManagementSubsystem extends SubsystemBase {
   /** Is a brownout likely to happen soon? */
   public boolean isBrownoutImminent() {
     return m_brownoutImminent;
+  }
+
+  /**
+   * True once voltage has stayed below kEmergencyVoltage for DEFENSE_TRIGGER_S seconds.
+   * Latches until robot reboot — use as a Trigger in RobotContainer to kill the shooter
+   * and free power for swerve defense.
+   */
+  public boolean isDefenseMode() {
+    return m_defenseModeActive;
   }
 
   /** Current battery voltage */

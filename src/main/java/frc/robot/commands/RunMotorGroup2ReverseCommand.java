@@ -54,10 +54,13 @@ public class RunMotorGroup2ReverseCommand extends Command {
     // Nothing special needed on start
   }
 
+  // Slow unjam speed — gentle enough to clear a jam without launching the game piece backwards.
+  private static final double REVERSE_RPM = -700.0;
+
   @Override
   public void execute() {
-    // Run shooter motors in reverse
-    m_subsystem.runReverse();
+    // Slow reverse — emergency unjam only, not full power
+    m_subsystem.runAtRPM(REVERSE_RPM);
   }
 
   @Override
