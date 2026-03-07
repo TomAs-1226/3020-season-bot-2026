@@ -5,7 +5,6 @@
 package frc.robot.commands;
 
 import edu.wpi.first.wpilibj2.command.Command;
-import frc.robot.ArmSetpoint;
 import frc.robot.Constants.MotorConstants;
 import frc.robot.subsystems.IntakeDeploySubsystem;
 import frc.robot.subsystems.MotorGroup2Subsystem;
@@ -22,6 +21,11 @@ import frc.robot.subsystems.MotorGroup2Subsystem;
  * closed-loop controller can push through that resistance and still reach the exact
  * stowed encoder position.
  *
+ * <p>The arm targets slightly past encoder zero ({@code kShootStowOvershoot}) to
+ * guarantee it physically seats against the stow hard stop even if encoder zero
+ * is slightly off.  On completion the target is snapped back to 0.0 so
+ * holdPosition() doesn't strain the gears.
+ *
  * <p>Runs in parallel with ShootV1Command and ShootAutoFeedCommand on the L1 button.
  * This command only requires IntakeDeploySubsystem — the shooter reference is read-only
  * so shooter and feeder commands are never interrupted.
@@ -30,6 +34,10 @@ import frc.robot.subsystems.MotorGroup2Subsystem;
  * holdPosition() command keeps it there.
  */
 public class ShootStowArmCommand extends Command {
+
+    // How far past encoder 0 the arm should target during shoot-stow.
+    // Negative = past stow toward the hard stop.  Must stay within kArmReverseSoftLimit (-1.0).
+    private static final double kShootStowOvershoot = -0.5;
 
     private final IntakeDeploySubsystem m_arm;
     private final MotorGroup2Subsystem m_shooter;
@@ -45,10 +53,6 @@ public class ShootStowArmCommand extends Command {
     @Override
     public void initialize() {
         m_stowStarted = false;
-        if (m_arm.isUp()) {
-            // Already stowed — nothing to do, let isFinished() return true immediately.
-            return;
-        }
     }
 
     @Override
@@ -65,29 +69,38 @@ public class ShootStowArmCommand extends Command {
                 m_arm.setStallProtectionEnabled(false);
                 // Slow cruise so the arm gently pushes balls into the indexer
                 m_arm.setMotionMagicCruiseVelocity(MotorConstants.kArmShootStowCruiseVelocity);
-                m_arm.moveToSetpoint(ArmSetpoint.STOWED);
-                System.out.println("[SHOOT-STOW] Shooter on target — arm stowing (slow push mode)");
+                // Target slightly past zero so the arm physically seats at the hard stop
+                m_arm.moveToRotations(kShootStowOvershoot);
+                System.out.println("[SHOOT-STOW] Shooter on target — arm stowing to " + kShootStowOvershoot + " (overshoot mode)");
             } else {
                 // Not ready yet — keep holding arm at current position
                 m_arm.holdPosition();
             }
         } else {
             // Re-command every cycle so the arm keeps moving
-            m_arm.moveToSetpoint(ArmSetpoint.STOWED);
+            m_arm.moveToRotations(kShootStowOvershoot);
         }
     }
 
     @Override
     public boolean isFinished() {
-        return m_arm.isUp() || (m_stowStarted && m_arm.isAtTarget());
+        if (m_arm.isUp()) return true;
+        // Finished when the arm reaches the overshoot target
+        if (m_stowStarted && Math.abs(m_arm.getPositionRotations() - kShootStowOvershoot)
+                < MotorConstants.kArmPositionToleranceRotations) {
+            return true;
+        }
+        return false;
     }
 
     @Override
     public void end(boolean interrupted) {
         m_arm.setStallProtectionEnabled(true);
         m_arm.setMotionMagicCruiseVelocity(MotorConstants.kArmCruiseVelocity);
-        if (interrupted && m_stowStarted) {
-            m_arm.stop();
+        if (m_stowStarted) {
+            // Snap arm to exactly zero so holdPosition() holds at home
+            // without pushing against the hard stop.
+            m_arm.moveToRotations(0.0);
         }
         System.out.println("[SHOOT-STOW] Arm " + (interrupted ? "stopped mid-stow" : "reached stow"));
     }
