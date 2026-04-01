@@ -160,6 +160,16 @@ public class MotorGroup1Subsystem extends SubsystemBase {
     m_entryRunning.setBoolean(true);
   }
 
+  /** Run hopper only (CAN 40) — used for intake + hopper on Circle.
+   *  Explicitly stops the feed roller (CAN 41) so the indexer never runs during intake. */
+  public void runHopperOnly() {
+    m_hopperPower = m_entryHopperPowerPercent.getDouble(MotorConstants.kMotorGroup1HopperPowerPercent) / 100.0;
+    m_hopperPower = Math.max(0.0, Math.min(1.0, m_hopperPower));
+    m_motor1.setControl(m_motor1DutyCycle.withOutput(m_hopperPower));
+    m_motor2.setControl(m_coastOut); // keep feed roller stopped during intake
+    m_entryRunning.setBoolean(true);
+  }
+
   /** Run feeder in reverse — used for full outtake (L2). */
   public void runMotorsReverse() {
     m_hopperPower = m_entryHopperPowerPercent.getDouble(MotorConstants.kMotorGroup1HopperPowerPercent) / 100.0;

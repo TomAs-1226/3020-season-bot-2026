@@ -21,9 +21,9 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.ConditionalCommand;
 import edu.wpi.first.wpilibj2.command.button.CommandPS5Controller;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.robot.Constants.MotorConstants;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.commands.ArmCharacterizeCommand;
-import frc.robot.commands.AutoDeployIntakeCommand;
 import frc.robot.commands.DeployDownCommand;
 import frc.robot.commands.DeployUpCommand;
 import frc.robot.commands.HomeArmCommand;
@@ -60,19 +60,14 @@ import frc.robot.subsystems.TelemetrySubsystem;
  * ── SHOOTING ──────────────────────────────────────────────────────────────
  *   L1           = SHOOT (hold) — flywheel spins up; auto-feeds when at RPM.
  *                  Arm stows while shooting (pushes balls toward indexer).
- *                  "Shoot Status" on SmartDashboard shows live spinup progress.
- *   Cross (X)    = Feeder manual override (hold) — bypasses RPM check. Use to
- *                  clear a jam or force-feed without waiting for spinup.
- *   R1           = Shooter reverse (hold) — clears flywheel jams.
+ *   Cross (X)    = SHUTTLE SHOT (hold) — same as L1 but at lower RPM for
+ *                  short-range passes.
+ *   R1           = Unjam shooter (hold) — slow reverse to clear flywheel jams.
  *
- * ── INTAKE ────────────────────────────────────────────────────────────────
- *   Square       = Auto intake TOGGLE — press once to deploy arm + run rollers;
- *                  press again to stop. FIRST press of each power cycle also
- *                  homes the arm to the bumpers for accurate encoder zeroing.
- *   Triangle     = Intake rollers only (hold) — rollers without moving the arm.
- *                  Use when arm is already deployed and you want manual roller control.
- *   Circle       = Quick eject (hold) — intake roller reverse only.
- *                  Spits out a game piece without moving the arm or feeder.
+ * ── INTAKE / INDEX ──────────────────────────────────────────────────────
+ *   Triangle     = Intake rollers (hold) — run intake motors.
+ *   Circle       = Index toward shooter (hold) — runs feeder forward.
+ *   Square       = Unjam index (hold) — runs feeder in reverse.
  *
  * ── OUTTAKE / CLEAR ───────────────────────────────────────────────────────
  *   L2           = FULL OUTTAKE (hold) — intake roller + feeder both reverse.
@@ -154,6 +149,16 @@ public class RobotContainer {
     m_intake.setPowerManagement(m_power);
 
     // Register PathPlanner named commands BEFORE building autos.
+
+    // "shootNoArm" — shooter + auto-feed only, no arm movement.
+    // Used by ShootPreloadAuto when the preload is already in position.
+    NamedCommands.registerCommand("shootNoArm",
+        Commands.parallel(
+            new ShootV1Command(m_shooter),
+            new ShootAutoFeedCommand(m_shooter, m_feeder)
+        )
+    );
+
     // "shoot" replicates the L1 shoot sequence for auto:
     //   1) Shooter spins up + auto-feed when on target (same as L1)
     //   2) Arm: home if needed → deploy DOWN fast → slow stow back UP (pushes balls into shooter)
@@ -226,31 +231,35 @@ public class RobotContainer {
     m_controller.L1()
         .whileTrue(new ShootStowArmCommand(m_intakeArm, m_shooter));
 
-    // ===== FEEDER MANUAL OVERRIDE (Cross) =====
-    // Run feeder alone without spinup check — useful for clearing jams.
+    // ===== SHUTTLE SHOT (Cross) — THREE INDEPENDENT BINDINGS =====
+    // Same structure as L1 but at lower RPM for short-range passes.
     m_controller.cross()
-        .whileTrue(new RunMotorGroup1Command(m_feeder));
+        .whileTrue(new ShootV1Command(m_shooter, MotorConstants.kShuttleShotRPM));
+    m_controller.cross()
+        .whileTrue(new ShootAutoFeedCommand(m_shooter, m_feeder));
+    m_controller.cross()
+        .whileTrue(new ShootStowArmCommand(m_intakeArm, m_shooter));
 
-    // ===== SHOOTER REVERSE (R1) =====
+    // ===== UNJAM SHOOTER (R1) =====
+    // Slow reverse to clear flywheel jams.
     m_controller.R1()
         .whileTrue(new RunMotorGroup2ReverseCommand(m_shooter));
 
-    // ===== INTAKE — TOGGLE (Square) =====
-    // First press: homes arm to bumper (encoder zero), then deploys + runs rollers.
-    // Subsequent presses: deploy + run rollers directly (already homed this power cycle).
+    // ===== UNJAM INDEX (Square) =====
+    // Run feeder in reverse to clear index jams (hold).
     m_controller.square()
-        .toggleOnTrue(new ConditionalCommand(
-            new AutoDeployIntakeCommand(m_intake, m_intakeArm),
-            new HomeArmCommand(m_intakeArm).andThen(new AutoDeployIntakeCommand(m_intake, m_intakeArm)),
-            m_intakeArm::hasHomed));
+        .whileTrue(m_feeder.run(m_feeder::runMotorsReverse));
 
-    // ===== INTAKE EJECT / OUTTAKE (Circle) =====
-    // Run intake roller backwards to spit out a game piece (hold).
+    // ===== INTAKE + HOPPER (Circle) =====
+    // Run intake roller (CAN 45) and hopper (CAN 40) together (hold).
+    // Does NOT run the feed roller (CAN 41) — that only runs during shooting.
+    // runEnd() ensures stopMotors() is called when the button is released.
     m_controller.circle()
-        .whileTrue(new RunIntakeReverseCommand(m_intake));
+        .whileTrue(new RunIntakeCommand(m_intake)
+            .alongWith(m_feeder.runEnd(m_feeder::runHopperOnly, m_feeder::stopMotors)));
 
-    // ===== INTAKE ROLLERS ONLY (Triangle) =====
-    // Rollers without moving the arm (hold).
+    // ===== INTAKE ROLLERS (Triangle) =====
+    // Run intake motors (hold).
     m_controller.triangle()
         .whileTrue(new RunIntakeCommand(m_intake));
 

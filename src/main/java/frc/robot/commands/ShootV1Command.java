@@ -34,11 +34,20 @@ public class ShootV1Command extends Command {
 
     private final MotorGroup2Subsystem m_shooter;
     private final Timer                m_timer = new Timer();
+    private final double               m_overrideRPM;
 
+    /** Spin up to the Shuffleboard target RPM. */
     public ShootV1Command(MotorGroup2Subsystem shooter) {
+        this(shooter, -1);
+    }
+
+    /**
+     * Spin up to a fixed RPM (used for shuttle shots).
+     * Pass -1 to use the Shuffleboard target RPM instead.
+     */
+    public ShootV1Command(MotorGroup2Subsystem shooter, double overrideRPM) {
         m_shooter = shooter;
-        // ONLY require shooter — feeder is handled independently so manual
-        // feeder commands (Cross, L2) never kill the shooter.
+        m_overrideRPM = overrideRPM;
         addRequirements(shooter);
     }
 
@@ -46,8 +55,17 @@ public class ShootV1Command extends Command {
     public void initialize() {
         m_timer.reset();
         m_timer.start();
-        m_shooter.runForward();
+        applyVelocity();
         m_shooter.setShooterStatus("SPINNING UP...");
+    }
+
+    /** Command the shooter — uses override RPM if set, otherwise Shuffleboard value. */
+    private void applyVelocity() {
+        if (m_overrideRPM > 0) {
+            m_shooter.runForwardAtRPM(m_overrideRPM);
+        } else {
+            m_shooter.runForward();
+        }
     }
 
     @Override
@@ -55,7 +73,7 @@ public class ShootV1Command extends Command {
         // Re-command velocity EVERY cycle — this is the RPM enforcement.
         // Even if CAN resets, voltage sags, or anything else happens,
         // the shooter will recover within one 20ms cycle.
-        m_shooter.runForward();
+        applyVelocity();
 
         double avgRPM    = m_shooter.getAverageRPM();
         double targetRPM = m_shooter.getTargetRPM();

@@ -48,7 +48,7 @@ public class RunIntakeCommand extends Command {
 
   @Override
   public void initialize() {
-    System.out.println("[TEAM 3020 INTAKE] Intake started");
+    System.out.println("[TEAM 3020 INTAKE] >>>>>> INTAKE COMMAND STARTED — Triangle pressed <<<<<<");
   }
 
   @Override

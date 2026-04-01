@@ -213,6 +213,19 @@ public class MotorGroup2Subsystem extends SubsystemBase {
     m_isReversing = false;
   }
 
+  /** Spin up to an explicit forward RPM (sets target for isOnTarget check). */
+  public void runForwardAtRPM(double rpm) {
+    m_targetRPM = Math.abs(rpm);
+    double newRPS = m_targetRPM / 60.0;
+    if (m_activeRPS != newRPS) {
+      m_spinupCount++;
+    }
+    m_activeRPS = newRPS;
+    m_motor1.setControl(m_velocityControl1.withVelocity(-m_activeRPS));
+    m_motor2.setControl(m_velocityControl2.withVelocity(m_activeRPS));
+    m_isReversing = false;
+  }
+
   /** Reverse shooter to clear jams. */
   public void runReverse() {
     m_targetRPM = m_entryTargetRPM.getDouble(MotorConstants.kMotorGroup2TargetRPM);

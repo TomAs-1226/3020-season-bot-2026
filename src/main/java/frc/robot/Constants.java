@@ -46,8 +46,8 @@ public final class Constants {
     // Hopper (CAN 40) + Feed Roller (CAN 41) - both Kraken X60 FOC
     public static final int kMotorGroup1Motor1ID = 40; // Hopper
     public static final int kMotorGroup1Motor2ID = 41; // Feed roller
-    public static final double kMotorGroup1HopperPowerPercent = 10.0; // Hopper — slow; tune up in Shuffleboard
-    public static final double kMotorGroup1PowerPercent = 20.0;       // Feed Roller — tune up in Shuffleboard
+    public static final double kMotorGroup1HopperPowerPercent = 20.0; // Hopper — tune up in Shuffleboard
+    public static final double kMotorGroup1PowerPercent = 30.0;       // Feed Roller — tune up in Shuffleboard
 
     // ----- SHOOTER / FLYWHEEL MOTORS -----
     // CAN 30 (leader) and CAN 31 (follower) - Kraken X60 FOC
@@ -56,6 +56,7 @@ public final class Constants {
     public static final String kMotorGroup2CANBus = "";
     public static final double kMotorGroup2TargetRPM = 3000.0; // Tune via SmartDashboard
     public static final double kMotorGroup2TargetRPS = kMotorGroup2TargetRPM / 60.0;
+    public static final double kShuttleShotRPM = 1500.0; // Low-RPM shuttle pass
     public static final double kShooterOnTargetToleranceRPM = 150.0; // within this = ready to feed
 
     // Shooter idle - keeps flywheel spinning for faster spinup
@@ -66,7 +67,7 @@ public final class Constants {
     // FALCON 500 - does NOT support FOC, use withEnableFOC(false)
     public static final int kMotorGroup3MotorID = 45;
     public static final String kMotorGroup3CANBus = "";
-    public static final double kIntakePowerPercent = 90.0;
+    public static final double kIntakePowerPercent = 95.0;
     public static final double kIntakeReversePowerPercent = 50.0;
     public static final boolean kIntakeUseBrakeMode = true;
 
@@ -145,7 +146,7 @@ public final class Constants {
 
     // MotionMagic trapezoidal profile (motor shaft)
     public static final double kArmCruiseVelocity          = 15.0; // RPS — normal stow/deploy speed
-    public static final double kArmShootStowCruiseVelocity =  4.0; // RPS — slow push while shooting (~40 deg/s arm)
+    public static final double kArmShootStowCruiseVelocity =  2.0; // RPS — slow push while shooting (~20 deg/s arm)
     public static final double kArmAcceleration            = 25.0; // RPS/s — reaches cruise in 0.6 s
 
     // ----- CURRENT LIMITS -----
